@@ -117,6 +117,33 @@ def brax_ppo_config(env_name: str) -> config_dict.ConfigDict:
         policy_obs_key="state",
         value_obs_key="privileged_state",
     )
+
+  elif env_name in (
+      "DigitRefTracking_Loco_JaxPPO",
+  ):
+    rl_config.num_timesteps=300_000_000
+    rl_config.num_evals=10
+    rl_config.reward_scaling=1.0
+    rl_config.episode_length=env_config.episode_length
+    rl_config.normalize_observations=True
+    rl_config.action_repeat=1
+    rl_config.unroll_length=20
+    rl_config.num_minibatches=32
+    rl_config.num_updates_per_batch=4
+    rl_config.discounting=0.97
+    rl_config.learning_rate=5e-5 #3e-4
+    rl_config.entropy_cost=1e-2
+    rl_config.num_envs=4096
+    rl_config.batch_size=128 #256
+    rl_config.max_grad_norm=1.0
+    rl_config.network_factory=config_dict.create(
+        policy_hidden_layer_sizes=(512, 512, 256, 256),
+        value_hidden_layer_sizes=(512, 512, 512, 256, 256),
+        policy_obs_key="state",
+        value_obs_key="state",
+    )
+
+
   elif env_name in (
       "BarkourJoystick",
       "H1InplaceGaitTracking",

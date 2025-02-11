@@ -155,18 +155,47 @@ def init(
   return data
 
 
+# def step(
+#     model: mjx.Model,
+#     data: mjx.Data,
+#     action: jax.Array,
+#     n_substeps: int = 1,
+# ) -> mjx.Data:
+#   def single_step(data, _):
+#     data = data.replace(ctrl=action)
+#     data = mjx.step(model, data)
+#     return data, None
+
+#   return jax.lax.scan(single_step, data, (), n_substeps)[0]
+
 def step(
     model: mjx.Model,
     data: mjx.Data,
-    action: jax.Array,
+    motor_targets: jax.Array,
+    kp: jax.Array,
+    kv: jax.Array,
+    a_pos_index: jax.Array,
+    a_vel_index: jax.Array,
+    gear_ratio: jax.Array,
     n_substeps: int = 1,
 ) -> mjx.Data:
-  def single_step(data, _):
-    data = data.replace(ctrl=action)
-    data = mjx.step(model, data)
-    return data, None
+    def single_step(data, _):
+        # Read current positions and velocities
+        curr_angles = data.qpos[a_pos_index]
+        curr_speeds = data.qvel[a_vel_index]
+        # Compute errors
+        perror = motor_targets - curr_angles
+        verror = -curr_speeds  # Assuming target speed is zero
+        # Compute torques using PD control
+        torque = kp * perror + kv * verror
+        torque = torque / gear_ratio
+        # Apply torques and step the environment
+        data = data.replace(ctrl=torque)
+        data = mjx.step(model, data)
+        return data, None
 
-  return jax.lax.scan(single_step, data, (), n_substeps)[0]
+    # Perform n_substeps using JAX's lax.scan
+    return jax.lax.scan(single_step, data, (), n_substeps)[0]
 
 
 @struct.dataclass

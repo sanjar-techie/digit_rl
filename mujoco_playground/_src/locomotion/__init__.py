@@ -38,6 +38,8 @@ from mujoco_playground._src.locomotion.spot import getup as spot_getup
 from mujoco_playground._src.locomotion.spot import joystick as spot_joystick
 from mujoco_playground._src.locomotion.spot import joystick_gait_tracking as spot_joystick_gait_tracking
 
+from mujoco_playground._src.locomotion.digit_v3 import ref_tracking_loco_jax_ppo as digit_ref_tracking_loco_jax_ppo
+
 _envs = {
     "BarkourJoystick": barkour_joystick.Joystick,
     "BerkeleyHumanoidJoystickFlatTerrain": functools.partial(
@@ -71,6 +73,8 @@ _envs = {
     "SpotJoystickGaitTracking": (
         spot_joystick_gait_tracking.JoystickGaitTracking
     ),
+
+    "DigitRefTracking_Loco_JaxPPO": digit_ref_tracking_loco_jax_ppo.DigitRefTracking_Loco,
 }
 
 _cfgs = {
@@ -94,6 +98,8 @@ _cfgs = {
     "SpotFlatTerrainJoystick": spot_joystick.default_config,
     "SpotGetup": spot_getup.default_config,
     "SpotJoystickGaitTracking": spot_joystick_gait_tracking.default_config,
+
+    "DigitRefTracking_Loco_JaxPPO": digit_ref_tracking_loco_jax_ppo.default_config,
 }
 
 _randomizer = {
