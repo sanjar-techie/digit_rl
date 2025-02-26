@@ -163,6 +163,8 @@ def main(argv):
 
   if _NUM_TIMESTEPS.present:
     ppo_params.num_timesteps = _NUM_TIMESTEPS.value
+  if _PLAY_ONLY.present:
+    ppo_params.num_timesteps = 0
   if _NUM_EVALS.present:
     ppo_params.num_evals = _NUM_EVALS.value
   if _REWARD_SCALING.present:
@@ -231,7 +233,7 @@ def main(argv):
 
   # Initialize Weights & Biases if required
   if _USE_WANDB.value and not _PLAY_ONLY.value:
-    wandb.init(project="mjxrl", entity="dextrm", name=exp_name)
+    wandb.init(project="mjxrl", entity="fukangliu-georgia-institute-of-technology", name=exp_name)
     wandb.config.update(env_cfg.to_dict())
     wandb.config.update({"env_name": _ENV_NAME.value})
 
@@ -242,18 +244,16 @@ def main(argv):
   # Handle checkpoint loading
   if _LOAD_CHECKPOINT_PATH.value is not None:
     # Convert to absolute path
-    _LOAD_CHECKPOINT_PATH.value = epath.Path(
-        _LOAD_CHECKPOINT_PATH.value
-    ).resolve()
-    if _LOAD_CHECKPOINT_PATH.value.is_dir():
-      latest_ckpts = list(_LOAD_CHECKPOINT_PATH.value.glob("*"))
+    ckpt_path = epath.Path(_LOAD_CHECKPOINT_PATH.value).resolve()
+    if ckpt_path.is_dir():
+      latest_ckpts = list(ckpt_path.glob("*"))
       latest_ckpts = [ckpt for ckpt in latest_ckpts if ckpt.is_dir()]
       latest_ckpts.sort(key=lambda x: int(x.name))
       latest_ckpt = latest_ckpts[-1]
       restore_checkpoint_path = latest_ckpt
       print(f"Restoring from: {restore_checkpoint_path}")
     else:
-      restore_checkpoint_path = _LOAD_CHECKPOINT_PATH.value
+      restore_checkpoint_path = ckpt_path
       print(f"Restoring from checkpoint: {restore_checkpoint_path}")
   else:
     print("No checkpoint path provided, not restoring from checkpoint")
@@ -266,7 +266,7 @@ def main(argv):
 
   # Save environment configuration
   with open(ckpt_path / "config.json", "w", encoding="utf-8") as fp:
-    json.dump(env_cfg.to_json(), fp, indent=4)
+    json.dump(env_cfg.to_dict(), fp, indent=4)
 
   # Define policy parameters function for saving checkpoints
   def policy_params_fn(current_step, make_policy, params):  # pylint: disable=unused-argument

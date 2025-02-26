@@ -1,0 +1,24 @@
+2025-02-25 20:15:08,548 INFO    MainThread:27761 [wandb_setup.py:_flush():68] Current SDK version is 0.19.5
+2025-02-25 20:15:08,548 INFO    MainThread:27761 [wandb_setup.py:_flush():68] Configure stats pid to 27761
+2025-02-25 20:15:08,548 INFO    MainThread:27761 [wandb_setup.py:_flush():68] Loading settings from /home/fliu305/.config/wandb/settings
+2025-02-25 20:15:08,548 INFO    MainThread:27761 [wandb_setup.py:_flush():68] Loading settings from /home/fliu305/mujoco_playground/wandb/settings
+2025-02-25 20:15:08,548 INFO    MainThread:27761 [wandb_setup.py:_flush():68] Loading settings from environment variables
+2025-02-25 20:15:08,549 INFO    MainThread:27761 [wandb_init.py:setup_run_log_directory():637] Logging user logs to /home/fliu305/mujoco_playground/wandb/run-20250225_201508-98fc22rl/logs/debug.log
+2025-02-25 20:15:08,549 INFO    MainThread:27761 [wandb_init.py:setup_run_log_directory():638] Logging internal logs to /home/fliu305/mujoco_playground/wandb/run-20250225_201508-98fc22rl/logs/debug-internal.log
+2025-02-25 20:15:08,549 INFO    MainThread:27761 [wandb_init.py:init():756] calling init triggers
+2025-02-25 20:15:08,549 INFO    MainThread:27761 [wandb_init.py:init():761] wandb.init called with sweep_config: {}
+config: {'_wandb': {}}
+2025-02-25 20:15:08,549 INFO    MainThread:27761 [wandb_init.py:init():789] starting backend
+2025-02-25 20:15:08,759 INFO    MainThread:27761 [wandb_init.py:init():793] sending inform_init request
+2025-02-25 20:15:08,768 INFO    MainThread:27761 [backend.py:_multiprocessing_setup():97] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-02-25 20:15:08,769 INFO    MainThread:27761 [wandb_init.py:init():808] backend started and connected
+2025-02-25 20:15:08,770 INFO    MainThread:27761 [wandb_init.py:init():901] updated telemetry
+2025-02-25 20:15:08,777 INFO    MainThread:27761 [wandb_init.py:init():926] communicating run to backend with 90.0 second timeout
+2025-02-25 20:15:09,024 INFO    MainThread:27761 [wandb_init.py:init():984] starting run threads in backend
+2025-02-25 20:15:09,125 INFO    MainThread:27761 [wandb_run.py:_console_start():2385] atexit reg
+2025-02-25 20:15:09,125 INFO    MainThread:27761 [wandb_run.py:_redirect():2235] redirect: wrap_raw
+2025-02-25 20:15:09,125 INFO    MainThread:27761 [wandb_run.py:_redirect():2300] Wrapping output streams.
+2025-02-25 20:15:09,125 INFO    MainThread:27761 [wandb_run.py:_redirect():2325] Redirects installed.
+2025-02-25 20:15:09,126 INFO    MainThread:27761 [wandb_init.py:init():1026] run started, returning control to user process
+2025-02-25 20:15:09,126 INFO    MainThread:27761 [wandb_run.py:_config_callback():1253] config_cb None None {'action_repeat': 1, 'action_scale': 1, 'ctrl_dt': 0.005, 'early_termination': True, 'episode_length': 1800, 'hist_interval': 6, 'history_len': 20, 'obs_noise': {'level': 0, 'scales': {'gravity': 0.05, 'gyro': 0.2, 'joint_pos': 0.01, 'joint_vel': 1.5}}, 'ref_ee_pos_future_interval': 6, 'ref_ee_pos_future_len': 20, 'reward_config': {'scales': {'action_rate': -0.01, 'projected_gravity_penalty': -2.0, 'root_motion_penalty': -1.0, 'tracking_endeffector_pos': 1.5, 'tracking_joint_pos': 3.0, 'tracking_root_ori': 2.0, 'tracking_root_pos': 2.0, 'tracking_root_vel': 1.5}, 'tracking_sigma': 0.5}, 'sim_dt': 0.001}
+2025-02-25 20:15:09,126 INFO    MainThread:27761 [wandb_run.py:_config_callback():1253] config_cb None None {'env_name': 'DigitRefTracking_Loco_JaxPPO'}

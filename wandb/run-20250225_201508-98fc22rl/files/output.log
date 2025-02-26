@@ -1,0 +1,11 @@
+No checkpoint path provided, not restoring from checkpoint
+Checkpoint path: /home/fliu305/mujoco_playground/logs/DigitRefTracking_Loco_JaxPPO-20250225-201508/checkpoints
+Successfully loaded the reference!!
+0: reward=2.165
+3358720: reward=5.550
+6717440: reward=12.255
+10076160: reward=19.447
+13434880: reward=32.600
+16793600: reward=54.457
+20152320: reward=75.379
+23511040: reward=75.705

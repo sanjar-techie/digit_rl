@@ -39,6 +39,10 @@ from mujoco_playground._src.locomotion.spot import joystick as spot_joystick
 from mujoco_playground._src.locomotion.spot import joystick_gait_tracking as spot_joystick_gait_tracking
 
 from mujoco_playground._src.locomotion.digit_v3 import ref_tracking_loco_jax_ppo as digit_ref_tracking_loco_jax_ppo
+from mujoco_playground._src.locomotion.digit_v3 import ref_tracking_loco_jax_ppo_IK as digit_ref_tracking_loco_jax_ppo_IK
+from mujoco_playground._src.locomotion.digit_v3 import ref_tracking_loco_rsl_rl as digit_ref_tracking_loco_rsl_rl
+from mujoco_playground._src.locomotion.t1 import joystick as t1_joystick
+from mujoco_playground._src.locomotion.t1 import randomize as t1_randomize
 
 _envs = {
     "BarkourJoystick": barkour_joystick.Joystick,
@@ -75,6 +79,14 @@ _envs = {
     ),
 
     "DigitRefTracking_Loco_JaxPPO": digit_ref_tracking_loco_jax_ppo.DigitRefTracking_Loco,
+    "DigitRefTracking_Loco_JaxPPO_IK": digit_ref_tracking_loco_jax_ppo_IK.DigitRefTracking_Loco,
+    "DigitRefTracking_Loco_RSLRL": digit_ref_tracking_loco_rsl_rl.DigitRefTracking_Loco,
+    "T1JoystickFlatTerrain": functools.partial(
+        t1_joystick.Joystick, task="flat_terrain"
+    ),
+    "T1JoystickRoughTerrain": functools.partial(
+        t1_joystick.Joystick, task="rough_terrain"
+    ),
 }
 
 _cfgs = {
@@ -100,6 +112,10 @@ _cfgs = {
     "SpotJoystickGaitTracking": spot_joystick_gait_tracking.default_config,
 
     "DigitRefTracking_Loco_JaxPPO": digit_ref_tracking_loco_jax_ppo.default_config,
+    "DigitRefTracking_Loco_JaxPPO_IK": digit_ref_tracking_loco_jax_ppo_IK.default_config,
+    "DigitRefTracking_Loco_RSLRL": digit_ref_tracking_loco_rsl_rl.default_config,
+    "T1JoystickFlatTerrain": t1_joystick.default_config,
+    "T1JoystickRoughTerrain": t1_joystick.default_config,
 }
 
 _randomizer = {
@@ -116,12 +132,14 @@ _randomizer = {
     "Go1Getup": go1_randomize.domain_randomize,
     "Go1Handstand": go1_randomize.domain_randomize,
     "Go1Footstand": go1_randomize.domain_randomize,
+    "T1JoystickFlatTerrain": t1_randomize.domain_randomize,
+    "T1JoystickRoughTerrain": t1_randomize.domain_randomize,
 }
 
 
 def __getattr__(name):
-  if name == "ALL":
-    return list(_envs.keys())
+  if name == "ALL_ENVS":
+    return tuple(_envs.keys())
   raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 

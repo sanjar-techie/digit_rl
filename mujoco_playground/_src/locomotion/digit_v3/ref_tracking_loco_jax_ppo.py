@@ -42,7 +42,10 @@ def default_config() -> config_dict.ConfigDict:
       early_termination=True,
       action_repeat=1,
       action_scale=1, #0.3,
-      history_len=1,
+      history_len=20,
+      hist_interval=6,
+      ref_ee_pos_future_len=20,
+      ref_ee_pos_future_interval=6,
       obs_noise=config_dict.create(
           level=0, #0.6,
           scales=config_dict.create(
@@ -101,34 +104,46 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     self.base_local_rot       = tf3.euler.euler2mat(0, 0, -self.base_init_ori[2])
     self.base_local_init_pos  = self.base_local_rot.dot(self._mj_model.keyframe("home").qpos[0:3])
 
-    self.a_pos_index = jp.array([7, 8, 9, 14, 18, 23, 30, 31, 32, 33, 34, 35, 36, 41, 45, 50, 57, 58, 59, 60]) # actuator joint pos
-    self.a_vel_index = jp.array([6, 7, 8, 12, 16, 20, 26, 27, 28, 29, 30, 31, 32, 36, 40, 44, 50, 51, 52, 53]) # actuator joint vel
-    self.kp = jp.array([90,  90,  120,  120, 30,  30,  60,  60,  60,  60,   # hip-roll, yaw, pitch, knee, to-A, B, shoulder-row, pitch, yaw, elbow
-                        90,  90,  120,  120, 30,  30,  60,  60,  60,  60])
-    self.kd = jp.array([5.0, 5.0, 8.0, 8.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0,
-                        5.0, 5.0, 8.0, 8.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0])*0.2
-    self.damping = jp.array([66.849, 26.1129, 38.05, 38.05, 15.5532, 15.5532, 66.849, 66.849, 26.1129, 66.849,
-                        66.849, 26.1129, 38.05, 38.05, 15.5532, 15.5532, 66.849, 66.849, 26.1129, 66.849])
+    self.a_pos_index = jp.array([
+      7,  8,  9,  14, 18, 23, 30, 31, 32, 33,  # actuator joint pos "hip-roll, yaw, pitch, knee, toe-A, B, shoulder-row, pitch, yaw, elbow"
+      34, 35, 36, 41, 45, 50, 57, 58, 59, 60
+    ]) 
+    self.a_vel_index = jp.array([
+      6,  7,  8,  12, 16, 20, 26, 27, 28, 29,  # actuator joint vel
+      30, 31, 32, 36, 40, 44, 50, 51, 52, 53
+    ]) 
+    self.kp = jp.array([
+      90, 90, 120, 120, 30, 30, 60, 60, 60, 60,   
+      90, 90, 120, 120, 30, 30, 60, 60, 60, 60
+    ])
+    self.kd = jp.array([
+      5.0, 5.0, 8.0, 8.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0,
+      5.0, 5.0, 8.0, 8.0, 3.0, 3.0, 3.0, 3.0, 3.0, 3.0
+    ])*0.2
+    self.damping = jp.array([
+      66.849, 26.1129, 38.05, 38.05, 15.5532, 15.5532, 66.849, 66.849, 26.1129, 66.849,
+      66.849, 26.1129, 38.05, 38.05, 15.5532, 15.5532, 66.849, 66.849, 26.1129, 66.849
+    ])
     self.kd += self.damping
     self.gear_ratio = jp.array(self._mj_model.actuator_gear[:, 0])
-    self.ee_index = jp.array([21, 41, 16, 36])
-    self.base_local_pos = jp.zeros(3)
+    self.ee_index = jp.array([21, 41, 16, 36]) # left hand, right hand, left foot, right foot
+    # self.base_local_pos = jp.zeros(3)
 
+    # reference trajectory path
     dir_path, name = os.path.split(os.path.abspath(__file__))
-    self.reference_dataset_path = os.path.join(dir_path, "crocoddyl_ref_walking_forward_2024-09-03-09-48-00.npz")
-    self.ref_loader = ref_loader.JaxReferenceLoader(ref_traj_path=dir_path)
+    self.reference_dataset_path = os.path.join(dir_path, "walking_npz")
+    self.ref_loader = ref_loader.JaxReferenceLoader(ref_traj_dir=self.reference_dataset_path)
 
   
   def reset(self, rng: jax.Array) -> mjx_env.State:
-    rng, noise_rng, ref_rng, gait_freq_rng, gait_rng, foot_height_rng, cmd_rng = (  # pylint: disable=redefined-outer-name
-        jax.random.split(rng, 7)
+    rng, noise_rng, ref_rng = (  # pylint: disable=redefined-outer-name
+        jax.random.split(rng, 3)
     )
     data = mjx_env.init(
         self.mjx_model, qpos=self._init_q, qvel=jp.zeros(self.mjx_model.nv)
     )
-    # Initialize history buffers.
-    qpos_history = jp.zeros(self._config.history_len * 20)
-
+    
+    # Base state in initial local coordinate
     self.base_local_pos = jp.dot(self.base_local_rot, data.qpos[0:3])
     self.base_local_trans = self.base_local_pos - self.base_local_init_pos
     self.base_local_quat = self.quaternion_multiply(self.quaternion_inverse(self.base_init_quat), data.qpos[3:7])
@@ -136,32 +151,31 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     self.base_local_lin_vel = jp.dot(self.base_local_rot, data.qvel[:3])
     self.base_local_ang_vel = jp.dot(self.base_local_rot, data.qvel[3:6])
 
-    
     # base states in robot coordinate
     self.base_robot_rot = self.quat2mat(data.qpos[3:7])
     self.base_robot_lin_vel = jp.dot(self.base_robot_rot.T, data.qvel[0:3])
     self.base_robot_ang_vel = data.qvel[3:6]
 
+    # End effector world/local positio
     self.base_world_ee_pos = data.xpos[self.ee_index] - data.qpos[:3]
     self.base_local_ee_pos = jp.dot(self.base_local_rot, self.base_world_ee_pos.T).T
 
-    self.ref_loader.reset()
+    # Initialize history buffers.
+    qpos_history = jp.zeros([self._config.history_len, 20])
+    ref_ee_pos_future = jp.zeros([self._config.ref_ee_pos_future_len,12])
 
     info = {
         "rng": rng,
+        "step": 0,
         "last_act": jp.zeros(self.mjx_model.nu),
         "last_last_act": jp.zeros(self.mjx_model.nu),
-        "step": 0,
         "motor_targets": jp.zeros(self.mjx_model.nu),
-        "base_local_ee_pos": jp.zeros(12),
-        "ref_base_local_pos": jp.array(self.ref_loader.ref_data["ref_base_local_pos"]),
-        "ref_base_local_ori": jp.array(self.ref_loader.ref_data["ref_base_local_ori"]),
-        "ref_base_robot_lin_vel": jp.array(self.ref_loader.ref_data["ref_base_robot_lin_vel"]),
-        "ref_base_robot_ang_vel": jp.array(self.ref_loader.ref_data["ref_base_robot_ang_vel"]),
-        "ref_actuator_targets": jp.array(self.ref_loader.ref_data["ref_qpos"][:, self.a_pos_index]),
-        "ref_base_local_ee_pos": jp.array(self.ref_loader.ref_data["ref_base_local_ee_pos"]),
         "qpos_history": qpos_history,
+        "ref_idx": self.sample_reference(ref_rng),
+        "ref_ee_pos_future": ref_ee_pos_future,
     }
+
+
 
     metrics = {}
     for k in self._config.reward_config.scales.keys():
@@ -172,7 +186,7 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     return mjx_env.State(data, obs, reward, done, metrics, info)
 
   def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
-    rng, cmd_rng, noise_rng = jax.random.split(state.info["rng"], 3)
+    state.info["rng"], noise_rng = jax.random.split(state.info["rng"], 2)
 
     # motor_targets = state.data.ctrl + action * self._config.action_scale
     # motor_targets = jp.clip(motor_targets, self._lowers, self._uppers)
@@ -207,10 +221,23 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     self.base_local_ee_pos = jp.dot(self.base_local_rot, self.base_world_ee_pos.T).T
 
 
+    # history and future buffers.
+    state.info["qpos_history"] = jp.roll(
+      state.info["qpos_history"], shift=-1, axis=0
+    ).at[-1].set(data.qpos[self.a_pos_index])
+
+    # max_step = state.info["ref_motion_lens"] - 1
+    max_step = jp.array(len(self.ref_loader.preloaded_refs["ref_base_local_pos"][state.info["ref_idx"]])) - 1
+    future_index = jp.minimum(state.info["step"] + self._config.ref_ee_pos_future_len, max_step)
+    state.info["ref_ee_pos_future"] = jp.roll(
+      state.info["ref_ee_pos_future"], shift=-1, axis=0
+      ).at[-1].set(jp.ravel(
+        self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][state.info["ref_idx"]][future_index]
+        ))
+    
     obs = self._get_obs(data, state.info, noise_rng)
     done = self._get_termination(data)
     
-
 
     pos, neg = self._get_reward(
         data, action, state.info, state.metrics, done,
@@ -223,18 +250,69 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     state.info["last_last_act"] = state.info["last_act"]
     state.info["last_act"] = action
     state.info["step"] += 1
-    state.info["rng"] = rng
+    state.info["rng"], ref_rng = jax.random.split(state.info["rng"])
 
 
     state.info["step"] = jp.where(
-        done | (state.info["step"] > self._config.episode_length - 10),
+        done | (state.info["step"] > jp.array(len(self.ref_loader.preloaded_refs["ref_base_local_pos"][state.info["ref_idx"]])) - 10),
         0,
         state.info["step"],
     )
+
+    state.info["ref_idx"] = jp.where(
+      done | (state.info["step"] > jp.array(len(self.ref_loader.preloaded_refs["ref_base_local_pos"][state.info["ref_idx"]])) - 10),
+      self.sample_reference(ref_rng),
+      state.info["ref_idx"]
+    )
+
+
+    # # # TODO 
+    # # # if the policy directly outputs a target position rather than a residual term, 
+    # # # the action could be initialized to the initial position of the robot
+    # state.info["last_act"] = jp.where(
+    #     done | (state.info["step"] > jp.array(len(self.ref_loader.preloaded_refs["ref_base_local_pos"][state.info["ref_idx"]])) - 10),
+    #     jp.zeros(self.mjx_model.nu),
+    #     state.info["last_act"]
+    # )
+
+    # state.info["last_last_act"] = jp.where(
+    #     done | (state.info["step"] > jp.array(len(self.ref_loader.preloaded_refs["ref_base_local_pos"][state.info["ref_idx"]])) - 10),
+    #     jp.zeros(self.mjx_model.nu),
+    #     state.info["last_last_act"]
+    # )
+
+    # state.info["qpos_history"] = jp.where(
+    #     done | (state.info["step"] > jp.array(len(self.ref_loader.preloaded_refs["ref_base_local_pos"][state.info["ref_idx"]])) - 10),
+    #     jp.zeros_like(state.info["qpos_history"]),
+    #     state.info["qpos_history"]
+    # )
+
+    # state.info["ref_ee_pos_future"] = jp.where(
+    #     done | (state.info["step"] > jp.array(len(self.ref_loader.preloaded_refs["ref_base_local_pos"][state.info["ref_idx"]])) - 10),
+    #     jp.zeros_like(state.info["ref_ee_pos_future"]),
+    #     state.info["ref_ee_pos_future"]
+    # )
+    
+    # # state.info["qpos_history"] = jp.where(
+    # #     state.info["step"] == 0,
+    # #     jp.tile(self.ref_loader.preloaded_refs["ref_motor_joint_pos"][state.info["ref_idx"]][:1], (self._config.history_len, 1)),  
+    # #     state.info["qpos_history"]
+    # # )
+
+
+    # # state.info["ref_ee_pos_future"] = jp.where(
+    # #     state.info["step"] == 0,
+    # #     jp.vstack([jp.ravel(self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][state.info["ref_idx"]][i]) 
+    # #               for i in range(self._config.ref_ee_pos_future_len)]),
+    # #     state.info["ref_ee_pos_future"]
+    # # )
+
+
     for k, v in rewards.items():
       state.metrics[f"reward/{k}"] = v
 
     done = done.astype(reward.dtype)
+
     state = state.replace(data=data, obs=obs, reward=reward, done=done)
     return state
 
@@ -265,24 +343,64 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
       info: dict[str, Any],
       rng: jax.Array,
   ) -> jax.Array:
+    
+    hist_interval = self._config.hist_interval
+    history_length = self._config.history_len
+    qpos_hist_obs = jp.concatenate([info["qpos_history"][i * hist_interval,:] 
+                     for i in range(int(history_length / hist_interval))]
+    )
+    future_interval = self._config.ref_ee_pos_future_interval
+    future_length = self._config.ref_ee_pos_future_len
+    ref_ee_pos_future = jp.concatenate([info["ref_ee_pos_future"][i * future_interval,:] 
+                     for i in range(int(future_length / future_interval))]
+    )
+    
     obs = jp.concatenate([
-        self.get_gyro(data),  # 3
-        self.get_gravity(data),  # 3
-        self.base_local_pos, # 3
-        self.base_local_ori,
+        self.base_local_trans,
         self.base_robot_lin_vel, # 3
         self.base_robot_ang_vel, # 3
+        # self.get_gyro(data),  # 3
+        self.get_gravity(data),  # 3
         data.qpos[self.a_pos_index],  # 20
+        self.base_local_pos, # 3
+        self.base_local_ori, 
         jp.ravel(self.base_local_ee_pos), 
-        info["ref_base_local_pos"][info["step"]], # 3
-        info["ref_base_local_ori"][info["step"]], # 3
-        info["ref_base_robot_lin_vel"][info["step"]], # 3
-        info["ref_base_robot_ang_vel"][info["step"]], # 3
-        info["ref_actuator_targets"][info["step"]], # 20
-        jp.ravel(info["ref_base_local_ee_pos"][info["step"]]), # 12
+        self.ref_loader.preloaded_refs["ref_base_local_pos"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_base_local_ori"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_base_robot_lin_vel"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_base_robot_ang_vel"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_motor_joint_pos"][info["ref_idx"]][info["step"]],
+        jp.ravel(self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]]),
         info["last_act"],  # 20
-        info["qpos_history"], # 20
+        qpos_hist_obs, # 20
+        ref_ee_pos_future,
     ])  
+
+    privileged_obs = jp.concatenate([
+        self.base_local_trans,
+        self.base_robot_lin_vel, # 3
+        self.base_robot_ang_vel, # 3
+        # self.get_gyro(data),  # 3
+        self.get_gravity(data),  # 3
+        data.qpos[self.a_pos_index],  # 20
+        data.qvel[self.a_vel_index],
+        self.base_local_pos, # 3
+        self.base_local_ori,
+        jp.ravel(self.base_local_ee_pos), 
+        self.ref_loader.preloaded_refs["ref_base_local_trans"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_base_local_pos"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_base_local_ori"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_base_robot_lin_vel"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_base_robot_ang_vel"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_motor_joint_pos"][info["ref_idx"]][info["step"]],
+        self.ref_loader.preloaded_refs["ref_motor_joint_vel"][info["ref_idx"]][info["step"]],
+        jp.ravel(self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]]),
+        info["last_act"],  # 20
+        qpos_hist_obs, # 20
+        ref_ee_pos_future,
+        self.kp*0.01,
+        self.kd*0.01,
+    ]) 
 
 
     # Add noise.
@@ -301,13 +419,13 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     )
     obs = obs + (2 * jax.random.uniform(rng, shape=obs.shape) - 1) * noise_vec
 
-    # Update history.
-    qpos_history = (
-        jp.roll(info["qpos_history"], 20)
-        .at[:20]
-        .set(data.qpos[self.a_pos_index])
-    )
-    info["qpos_history"] = qpos_history
+    # # Update history.
+    # qpos_history = (
+    #     jp.roll(info["qpos_history"], 20)
+    #     .at[:20]
+    #     .set(data.qpos[self.a_pos_index])
+    # )
+    # info["qpos_history"] = qpos_history
 
 
     # Concatenate final observation.
@@ -317,7 +435,10 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     #         qpos_history,
     #     ],
     # )
-    return obs
+    return {
+        "state": obs,
+        "privileged_state": privileged_obs,
+    }
   
 
   def _get_reward(
@@ -331,26 +452,39 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     del done, metrics  # Unused.
     pos = {
        "tracking_joint_pos": self._reward_tracking_joint_pos(
-          info["ref_actuator_targets"][info["step"]], data.qpos[self.a_pos_index]
+          self.ref_loader.preloaded_refs["ref_motor_joint_pos"][info["ref_idx"]][info["step"]],
+          data.qpos[self.a_pos_index]
        ),
        "tracking_root_pos": self._reward_tracking_root_pos(
-          info["ref_base_local_pos"][info["step"]], self.base_local_pos
+          self.ref_loader.preloaded_refs["ref_base_local_pos"][info["ref_idx"]][info["step"]], 
+          self.base_local_pos
        ),
        "tracking_root_ori": self._reward_tracking_root_ori(
-          info["ref_base_local_ori"][info["step"]], self.base_local_ori
+          self.ref_loader.preloaded_refs["ref_base_local_ori"][info["ref_idx"]][info["step"]], 
+          self.base_local_ori
        ),
         "tracking_root_vel": self._reward_tracking_vel(
-            info["ref_base_robot_lin_vel"][info["step"]], info["ref_base_robot_ang_vel"][info["step"]], self.base_robot_lin_vel, self.base_robot_ang_vel
+            self.ref_loader.preloaded_refs["ref_base_robot_lin_vel"][info["ref_idx"]][info["step"]], 
+            self.ref_loader.preloaded_refs["ref_base_robot_ang_vel"][info["ref_idx"]][info["step"]],  
+            self.base_robot_lin_vel, self.base_robot_ang_vel
         ),
         "tracking_endeffector_pos": self._reward_tracking_endeffector_pos(
-            info["ref_base_local_ee_pos"][info["step"]], self.base_local_ee_pos
+            self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]],
+            self.base_local_ee_pos
         ),
     }
     neg = {
-        "root_motion_penalty": self._cost_root_motion(self.base_robot_lin_vel, self.base_robot_ang_vel),
-        "projected_gravity_penalty": self._cost_projected_gravity(self.get_gravity(data)),
+        "root_motion_penalty": self._cost_root_motion(
+          self.base_robot_lin_vel, 
+          self.base_robot_ang_vel
+        ),
+        "projected_gravity_penalty": self._cost_projected_gravity(
+          self.get_gravity(data)
+        ),
         "action_rate": self._cost_action_rate(
-            info["last_act"], info["last_last_act"], action
+          info["last_act"], 
+          info["last_last_act"], 
+          action
         ),
     }
     return pos, neg
@@ -510,6 +644,7 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
         [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x**2 + y**2)],
     ])
   
-  @property
-  def observation_size(self) -> mjx_env.ObservationSize:
-    return 113
+  
+  
+  def sample_reference(self, rng: jax.Array) -> jax.Array:
+    return jax.random.randint(rng, shape=(), minval=0, maxval=self.ref_loader.preloaded_refs["ref_motor_joint_pos"].shape[0])

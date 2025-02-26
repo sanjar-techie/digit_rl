@@ -1,0 +1,48 @@
+{
+  "os": "Linux-6.5.0-28-generic-x86_64-with-glibc2.35",
+  "python": "CPython 3.12.8",
+  "startedAt": "2025-02-26T01:15:08.769408Z",
+  "args": [
+    "--env_name=DigitRefTracking_Loco_JaxPPO",
+    "--use_tb=True",
+    "--use_wandb=True"
+  ],
+  "program": "/home/fliu305/mujoco_playground/learning/train_jax_ppo.py",
+  "codePath": "learning/train_jax_ppo.py",
+  "git": {
+    "remote": "https://github.gatech.edu/GeorgiaTechLIDARGroup/mujoco_playground.git",
+    "commit": "44d675e8f48c2d1daea62bf89a3a8e8d815e1bdf"
+  },
+  "email": "fukangliu@gatech.edu",
+  "root": "/home/fliu305/mujoco_playground",
+  "host": "MEL06533D.me.gatech.edu",
+  "username": "fukangliu-georgia-institute-of-technology",
+  "executable": "/home/fliu305/anaconda3/envs/digit_mjx/bin/python",
+  "codePathLocal": "learning/train_jax_ppo.py",
+  "cpu_count": 24,
+  "cpu_count_logical": 32,
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "2014574526464",
+      "used": "280286769152"
+    }
+  },
+  "memory": {
+    "total": "67086057472"
+  },
+  "cpu": {
+    "count": 24,
+    "countLogical": 32
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 4090",
+      "memoryTotal": "25757220864",
+      "cudaCores": 16384,
+      "architecture": "Ada"
+    }
+  ],
+  "cudaVersion": "12.2"
+}
