@@ -20,6 +20,10 @@ import json
 import os
 import time
 import warnings
+import json
+import pandas as pd
+
+
 
 from absl import app
 from absl import flags
@@ -259,6 +263,8 @@ def main(argv):
     print("No checkpoint path provided, not restoring from checkpoint")
     restore_checkpoint_path = None
 
+  
+
   # Set up checkpoint directory
   ckpt_path = logdir / "checkpoints"
   ckpt_path.mkdir(parents=True, exist_ok=True)
@@ -368,6 +374,7 @@ def main(argv):
   jit_inference_fn = jax.jit(inference_fn)
 
   # Prepare for evaluation
+  print('Prepare for evaluation!')
   num_envs = 1
   if _VISION.value:
     eval_env = env
@@ -386,19 +393,82 @@ def main(argv):
   )
   rollout = [state0]
 
-  # Run evaluation rollout
-  for _ in range(env_cfg.episode_length):
-    act_rng, rng = jax.random.split(rng)
-    ctrl, _ = jit_inference_fn(state.obs, act_rng)
-    state = jit_step(state, ctrl)
-    state0 = (
-        jax.tree_util.tree_map(lambda x: x[0], state)
-        if _VISION.value
-        else state
-    )
-    rollout.append(state0)
-    if state0.done:
-      break
+  
+  log_data = []
+  ee_index = jp.array([21, 41, 16, 36])
+
+  for episode in range(1): 
+      rng, reset_rng = jax.random.split(rng)
+      state = jit_reset(reset_rng)
+      episode_reward = 0
+      episode_log = [] 
+
+      for step in range(env_cfg.episode_length):
+          act_rng, rng = jax.random.split(rng)
+          ctrl, _ = jit_inference_fn(state.obs, act_rng)
+          state = jit_step(state, ctrl)
+          
+          # Log qpos and qvel
+          state0 = (
+              jax.tree_util.tree_map(lambda x: x[0], state)
+              if _VISION.value
+              else state
+          )
+
+          episode_log.append({
+              "episode": episode,
+              "step": step,
+              "qpos": state0.data.qpos.tolist(),
+              "qvel": state0.data.qvel.tolist(),
+              "xpos": state0.data.xpos[ee_index].tolist(),
+              "action":state0.info["last_act"].tolist(),
+              "reward": state0.reward
+          })
+
+          episode_reward += state0.reward
+
+          rollout.append(state0)
+          if state0.done:
+              break  # Stop if episode ends
+
+      log_data.append({
+          "episode": episode,
+          "total_reward": episode_reward,
+          "data": episode_log
+      })
+
+      print(f"Episode {episode + 1}: Reward = {episode_reward:.2f}")
+
+  
+  timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+  csv_filename = f"evaluation_log_{timestamp}.csv"
+
+
+  # Save logs as CSV
+  df = pd.DataFrame([
+      {"episode": ep["episode"], "step": entry["step"], 
+      "qpos": entry["qpos"], "qvel": entry["qvel"], "xpos": entry["xpos"], "reward": entry["reward"]}
+      for ep in log_data for entry in ep["data"]
+  ])
+
+  df.to_csv(csv_filename, index=False)
+  print(f"Logged data saved as {csv_filename}")
+  
+  
+  # # Run evaluation rollout
+  # for _ in range(env_cfg.episode_length):
+  #   act_rng, rng = jax.random.split(rng)
+  #   ctrl, _ = jit_inference_fn(state.obs, act_rng)
+  #   state = jit_step(state, ctrl)
+  #   state0 = (
+  #       jax.tree_util.tree_map(lambda x: x[0], state)
+  #       if _VISION.value
+  #       else state
+  #   )
+  #   rollout.append(state0)
+  #   if state0.done:
+  #     break
+
 
   # Render and save the rollout
   render_every = 2
@@ -407,16 +477,35 @@ def main(argv):
 
   traj = rollout[::render_every]
 
+  # scene_option = mujoco.MjvOption()
+  # scene_option.flags[mujoco.mjtVisFlag.mjVIS_TRANSPARENT] = False
+  # scene_option.flags[mujoco.mjtVisFlag.mjVIS_PERTFORCE] = False
+  # scene_option.flags[mujoco.mjtVisFlag.mjVIS_CONTACTFORCE] = False
+
+  # frames = eval_env.render(
+  #     traj, height=480, width=640, scene_option=scene_option
+  # )
+  
   scene_option = mujoco.MjvOption()
+  scene_option.geomgroup[2] = True
+  scene_option.geomgroup[3] = False
+  scene_option.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = True
   scene_option.flags[mujoco.mjtVisFlag.mjVIS_TRANSPARENT] = False
   scene_option.flags[mujoco.mjtVisFlag.mjVIS_PERTFORCE] = False
-  scene_option.flags[mujoco.mjtVisFlag.mjVIS_CONTACTFORCE] = False
 
   frames = eval_env.render(
-      traj, height=480, width=640, scene_option=scene_option
+      traj,
+      camera="track",
+      scene_option=scene_option,
+      width=640,
+      height=480,
+      # modify_scene_fns=mod_fns,
   )
-  media.write_video("rollout.mp4", frames, fps=fps)
-  print("Rollout video saved as 'rollout.mp4'.")
+  
+  mp4_filename = f"rollout_{timestamp}.mp4"
+
+  media.write_video(mp4_filename, frames, fps=fps)
+  print(f"Rollout video saved as {mp4_filename}")
 
 
 if __name__ == "__main__":
