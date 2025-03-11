@@ -45,16 +45,20 @@ class JaxReferenceLoader:
             "ref_base_robot_lin_vel": [],
             "ref_base_robot_ang_vel": [],
             "ref_base_robot_ee_pos": [],
+            "ref_local_ee_pos": [],
+            "ref_torque":[],
         }
 
         for file in os.listdir(self.ref_traj_dir):
             if file.endswith(".npz"):
+                print(file)
                 path = os.path.join(self.ref_traj_dir, file)
                 data = np.load(path)
                 ref_data = data["ref_data"]
                 ref_qpos = jp.array(ref_data[:, 0:61])
                 ref_qvel = jp.array(ref_data[:, 61:61+54])
                 ref_ee_pos = jp.array(ref_data[:, 61+54:61+54+12].reshape(-1, 4, 3))
+                ref_torque = jp.array(ref_data[:, 61+54+12:61+54+12+20])
                 ref_base_local_quat = jp.array(ref_qpos[:, [6, 3, 4, 5]])  # (w, x, y, z) Notice: Specify the index for your reference trajectory
 
                 ref_base_local_ori = self.quat2euler(ref_base_local_quat)
@@ -78,6 +82,8 @@ class JaxReferenceLoader:
                 preloaded_refs["ref_base_robot_lin_vel"].append(ref_base_robot_lin_vel)
                 preloaded_refs["ref_base_robot_ang_vel"].append(ref_base_robot_ang_vel)
                 preloaded_refs["ref_base_robot_ee_pos"].append(ref_base_robot_ee_pos)
+                preloaded_refs["ref_local_ee_pos"].append(ref_ee_pos)
+                preloaded_refs["ref_torque"].append(ref_torque)
 
         for key in preloaded_refs:
             preloaded_refs[key] = jp.array(preloaded_refs[key])

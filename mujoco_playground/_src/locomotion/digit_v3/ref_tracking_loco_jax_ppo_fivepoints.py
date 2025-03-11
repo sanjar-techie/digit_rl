@@ -63,7 +63,7 @@ def default_config() -> config_dict.ConfigDict:
               tracking_root_ori=0.3*10,# 0.2*10,
               tracking_root_lin_vel=0.3*10, # 0.15*10,
               tracking_root_ang_vel=0.3*10, # 0.15*10,
-              tracking_endeffector_pos=0.3*10, # 0.15*10,
+              tracking_endeffector_pos=0.5*10, # 0.15*10,
               tracking_torque = 0.1*10,
               # Costs.
               root_motion_penalty=-1.0,
@@ -134,7 +134,7 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
 
     # reference trajectory path
     dir_path, name = os.path.split(os.path.abspath(__file__))
-    self.reference_dataset_path = os.path.join(dir_path, "walking") # walking_with_torque # testing
+    self.reference_dataset_path = os.path.join(dir_path, "walking_with_torque") # walking_with_torque # testing
     self.ref_loader = ref_loader.JaxReferenceLoader(ref_traj_dir=self.reference_dataset_path)
 
   
@@ -371,14 +371,14 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
         # self.get_gyro(data),  # 3
         self.get_gravity(data),  # 3
         data.qpos[self.a_pos_index],  # 20
-        self.base_local_pos, # 3
-        self.base_local_ori, 
+        # self.base_local_pos, # 3
+        # self.base_local_ori, 
         jp.ravel(self.base_local_ee_pos), 
         self.ref_loader.preloaded_refs["ref_base_local_pos"][info["ref_idx"]][info["step"]],
-        self.ref_loader.preloaded_refs["ref_base_local_ori"][info["ref_idx"]][info["step"]],
-        self.ref_loader.preloaded_refs["ref_base_robot_lin_vel"][info["ref_idx"]][info["step"]],
-        self.ref_loader.preloaded_refs["ref_base_robot_ang_vel"][info["ref_idx"]][info["step"]],
-        self.ref_loader.preloaded_refs["ref_motor_joint_pos"][info["ref_idx"]][info["step"]],
+        # self.ref_loader.preloaded_refs["ref_base_local_ori"][info["ref_idx"]][info["step"]],
+        # self.ref_loader.preloaded_refs["ref_base_robot_lin_vel"][info["ref_idx"]][info["step"]],
+        # self.ref_loader.preloaded_refs["ref_base_robot_ang_vel"][info["ref_idx"]][info["step"]],
+        # self.ref_loader.preloaded_refs["ref_motor_joint_pos"][info["ref_idx"]][info["step"]],
         jp.ravel(self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]]),
         info["last_act"],  # 20
         qpos_hist_obs, # 20

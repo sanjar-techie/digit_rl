@@ -38,10 +38,10 @@ def default_config() -> config_dict.ConfigDict:
   return config_dict.create(
       ctrl_dt=0.005,
       sim_dt=0.001, # 0.004,
-      episode_length=1960,
+      episode_length=1200,
       early_termination=True,
       action_repeat=1,
-      action_scale=1, #0.3,
+      action_scale=2, #0.3,
       history_len=20,
       hist_interval=6,
       ref_ee_pos_future_len=20,
@@ -59,16 +59,16 @@ def default_config() -> config_dict.ConfigDict:
           scales=config_dict.create(
               # Rewards.
               tracking_joint_pos=0.3*10,
-              tracking_root_pos=0.3*10, #0.2*10,
-              tracking_root_ori=0.3*10,# 0.2*10,
-              tracking_root_lin_vel=0.3*10, # 0.15*10,
-              tracking_root_ang_vel=0.3*10, # 0.15*10,
-              tracking_endeffector_pos=0.3*10, # 0.15*10,
-              tracking_torque = 0.1*10,
+              tracking_root_pos=0.3*10,
+              tracking_root_ori=0.2*10,
+              tracking_root_lin_vel=0.15*10,
+              tracking_root_ang_vel=0.15*10,
+              tracking_endeffector_pos=0.3*10,
+            #   tracking_torque = 0, # 0.1*10,
               # Costs.
-              root_motion_penalty=-1.0,
-              projected_gravity_penalty=-2.0,
-              action_rate=-0.01,
+              root_motion_penalty= 0,#-1.0,
+              projected_gravity_penalty=0,#-2.0,
+              action_rate=-0.01*2,#-0.01,
           ),
           tracking_sigma=0.5,
       ),
@@ -134,7 +134,7 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
 
     # reference trajectory path
     dir_path, name = os.path.split(os.path.abspath(__file__))
-    self.reference_dataset_path = os.path.join(dir_path, "walking") # walking_with_torque # testing
+    self.reference_dataset_path = os.path.join(dir_path, "jumping") # walking_with_torque # testing
     self.ref_loader = ref_loader.JaxReferenceLoader(ref_traj_dir=self.reference_dataset_path)
 
   
@@ -162,6 +162,9 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     # End effector world/local positio
     self.base_world_ee_pos = data.xpos[self.ee_index] - data.qpos[:3]
     self.base_local_ee_pos = jp.dot(self.base_local_rot, self.base_world_ee_pos.T).T
+    self.base_robot_ee_pos = jp.dot(jp.transpose(self.base_robot_rot), self.base_world_ee_pos.T).T 
+    self.world_ee_pos      = data.xpos[self.ee_index]
+    self.local_ee_pos      = jp.dot(self.base_local_rot, self.world_ee_pos.T).T
 
     # Initialize history buffers.
     qpos_history = jp.zeros([self._config.history_len, 20])
@@ -225,6 +228,9 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
 
     self.base_world_ee_pos = data.xpos[self.ee_index] - data.qpos[:3]
     self.base_local_ee_pos = jp.dot(self.base_local_rot, self.base_world_ee_pos.T).T
+    self.base_robot_ee_pos = jp.dot(jp.transpose(self.base_robot_rot), self.base_world_ee_pos.T).T 
+    self.world_ee_pos      = data.xpos[self.ee_index]
+    self.local_ee_pos      = jp.dot(self.base_local_rot, self.world_ee_pos.T).T
 
 
     # history and future buffers.
@@ -327,9 +333,9 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
 
   def _get_termination(self, data: mjx.Data) -> jax.Array:
     # Terminates if joint limits are exceeded or the robot falls.
-    fall_termination = self.get_gravity(data)[-1] < 0.85
-    base_too_low = data.qpos[2] < 0.8
-    base_vel_crazy_check = jp.any(data.qvel[:3] > 2)
+    fall_termination = self.get_gravity(data)[-1] < 0.5
+    base_too_low = data.qpos[2] < 0.5
+    base_vel_crazy_check = jp.any(data.qvel[:3] > 10)
     torso_arm_is_colliding = jp.any(jp.array([
         collision.geoms_colliding(data, geom_id, self._torso_id)
         for geom_id in self._arm_geom_id
@@ -365,24 +371,24 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     )
     
     obs = jp.concatenate([
-        self.base_local_trans,
+        # self.base_local_trans,
         self.base_robot_lin_vel, # 3
         self.base_robot_ang_vel, # 3
         # self.get_gyro(data),  # 3
         self.get_gravity(data),  # 3
         data.qpos[self.a_pos_index],  # 20
-        self.base_local_pos, # 3
-        self.base_local_ori, 
-        jp.ravel(self.base_local_ee_pos), 
-        self.ref_loader.preloaded_refs["ref_base_local_pos"][info["ref_idx"]][info["step"]],
-        self.ref_loader.preloaded_refs["ref_base_local_ori"][info["ref_idx"]][info["step"]],
+        # self.base_local_pos, # 3
+        # self.base_local_ori, 
+        # jp.ravel(self.base_local_ee_pos), 
+        # self.ref_loader.preloaded_refs["ref_base_local_pos"][info["ref_idx"]][info["step"]],
+        # self.ref_loader.preloaded_refs["ref_base_local_ori"][info["ref_idx"]][info["step"]],
         self.ref_loader.preloaded_refs["ref_base_robot_lin_vel"][info["ref_idx"]][info["step"]],
         self.ref_loader.preloaded_refs["ref_base_robot_ang_vel"][info["ref_idx"]][info["step"]],
         self.ref_loader.preloaded_refs["ref_motor_joint_pos"][info["ref_idx"]][info["step"]],
-        jp.ravel(self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]]),
+        # jp.ravel(self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]]),
         info["last_act"],  # 20
         qpos_hist_obs, # 20
-        ref_ee_pos_future,
+        # ref_ee_pos_future,
         # self.actuator_torque,
     ])  
 
@@ -398,16 +404,16 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
         self.base_local_ori,
         jp.ravel(self.base_local_ee_pos), 
         self.ref_loader.preloaded_refs["ref_base_local_trans"][info["ref_idx"]][info["step"]],
-        self.ref_loader.preloaded_refs["ref_base_local_pos"][info["ref_idx"]][info["step"]],
-        self.ref_loader.preloaded_refs["ref_base_local_ori"][info["ref_idx"]][info["step"]],
+        # self.ref_loader.preloaded_refs["ref_base_local_pos"][info["ref_idx"]][info["step"]],
+        # self.ref_loader.preloaded_refs["ref_base_local_ori"][info["ref_idx"]][info["step"]],
         self.ref_loader.preloaded_refs["ref_base_robot_lin_vel"][info["ref_idx"]][info["step"]],
         self.ref_loader.preloaded_refs["ref_base_robot_ang_vel"][info["ref_idx"]][info["step"]],
         self.ref_loader.preloaded_refs["ref_motor_joint_pos"][info["ref_idx"]][info["step"]],
         self.ref_loader.preloaded_refs["ref_motor_joint_vel"][info["ref_idx"]][info["step"]],
         jp.ravel(self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]]),
         info["last_act"],  # 20
-        qpos_hist_obs, # 20
-        ref_ee_pos_future,
+        # qpos_hist_obs, # 20
+        # ref_ee_pos_future,
         self.kp*0.01,
         self.kd*0.01,
         # self.actuator_torque,
@@ -486,10 +492,10 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
             self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]],
             self.base_local_ee_pos
         ),
-        "tracking_torque": self._reward_tracking_torque(
-            self.ref_loader.preloaded_refs["ref_torque"][info["ref_idx"]][info["step"]],
-            self.actuator_torque,
-        ),
+        # "tracking_torque": self._reward_tracking_torque(
+        #     self.ref_loader.preloaded_refs["ref_torque"][info["ref_idx"]][info["step"]],
+        #     self.actuator_torque,
+        # ),
     }
     neg = {
         "root_motion_penalty": self._cost_root_motion(
@@ -516,7 +522,7 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
   ) -> jax.Array:
     # Tracking of linear velocity commands (xy axes).
     error = jp.sum(jp.square(ref_actuator_targets - actuator_pos))
-    reward = jp.exp(-5*error)
+    reward = jp.exp(-20*error)
     return reward
   
   def _reward_tracking_root_pos(
@@ -539,7 +545,7 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     diff_euler = jax.vmap(self.wrap_to_pi)(diff_euler)
     rp_error = jp.sum(jp.square(diff_euler[:2]))
     y_error = jp.sum(jp.square(diff_euler[2])) 
-    reward = jp.exp(-100 * rp_error - 50 * y_error)
+    reward = jp.exp(-50 * rp_error - 50 * y_error)
     return reward
 
   def wrap_to_pi(
@@ -555,8 +561,8 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
       base_robot_lin_vel: jax.Array,
   ) -> jax.Array:
     # Tracking of linear velocity commands (xy axes).
-    lin_vel_error = jp.sum(jp.square(base_robot_lin_vel[:2] - ref_base_robot_lin_vel[:2]))
-    reward = jp.exp(-10 * lin_vel_error)
+    lin_vel_error = jp.sum(jp.square(base_robot_lin_vel - ref_base_robot_lin_vel))
+    reward = jp.exp(-2 * lin_vel_error)
     return reward
   
   def _reward_tracking_ang_vel(
@@ -565,21 +571,33 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
       base_robot_ang_vel: jax.Array,
   ) -> jax.Array:
     # Tracking of linear velocity commands (xy axes).
-    ang_vel_error = jp.sum(jp.square(base_robot_ang_vel[2] - ref_base_robot_ang_vel[2]))
-    reward = jp.exp(-ang_vel_error)
+    ang_vel_error = jp.sum(jp.square(base_robot_ang_vel - ref_base_robot_ang_vel))
+    reward = jp.exp(-0.5*ang_vel_error)
     return reward
   
 
+#   def _reward_tracking_endeffector_pos(
+#       self,
+#       ref_base_local_ee_pos: jax.Array,
+#       base_local_ee_pos: jax.Array,
+#   ) -> jax.Array:
+#     # Tracking of linear velocity commands (xy axes).
+#     base_local_ee_pos = jp.ravel(base_local_ee_pos)
+#     ref_base_local_ee_pos = jp.ravel(ref_base_local_ee_pos)
+#     endeffector_pos_error = jp.sum(jp.square(base_local_ee_pos - ref_base_local_ee_pos))
+#     reward = jp.exp(-20*endeffector_pos_error)
+#     return reward
+  
   def _reward_tracking_endeffector_pos(
       self,
-      ref_base_local_ee_pos: jax.Array,
-      base_local_ee_pos: jax.Array,
+      ref_local_ee_pos: jax.Array,
+      local_ee_pos: jax.Array,
   ) -> jax.Array:
     # Tracking of linear velocity commands (xy axes).
-    base_local_ee_pos = jp.ravel(base_local_ee_pos)
-    ref_base_local_ee_pos = jp.ravel(ref_base_local_ee_pos)
-    endeffector_pos_error = jp.sum(jp.square(base_local_ee_pos - ref_base_local_ee_pos))
-    reward = jp.exp(-50*endeffector_pos_error)
+    local_ee_pos = jp.ravel(local_ee_pos)
+    ref_local_ee_pos = jp.ravel(ref_local_ee_pos)
+    endeffector_pos_error = jp.sum(jp.square(local_ee_pos - ref_local_ee_pos))
+    reward = jp.exp(-20*endeffector_pos_error)
     return reward
   
 
