@@ -58,17 +58,17 @@ def default_config() -> config_dict.ConfigDict:
       reward_config=config_dict.create(
           scales=config_dict.create(
               # Rewards.
-              tracking_joint_pos=0.3*10,
-              tracking_root_pos=0.3*10,
-              tracking_root_ori=0.2*10,
-              tracking_root_lin_vel=0.15*10,
-              tracking_root_ang_vel=0.15*10,
-              tracking_endeffector_pos=0.3*10,
+              tracking_joint_pos=0.3,
+              tracking_root_pos=0.3,
+              tracking_root_ori=0.2,
+              tracking_root_lin_vel=0.15,
+              tracking_root_ang_vel=0.15,
+              tracking_endeffector_pos=0.3,
             #   tracking_torque = 0, # 0.1*10,
               # Costs.
               root_motion_penalty= 0,#-1.0,
               projected_gravity_penalty=0,#-2.0,
-              action_rate=-0.01*2,#-0.01,
+              action_rate=-0.01,#-0.01,
           ),
           tracking_sigma=0.5,
       ),
@@ -260,7 +260,8 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
     pos = {k: v * self._config.reward_config.scales[k] for k, v in pos.items()}
     neg = {k: v * self._config.reward_config.scales[k] for k, v in neg.items()}
     rewards = pos | neg
-    reward = jp.clip(sum(rewards.values()) * self.dt, 0.0)
+    # reward = jp.clip(sum(rewards.values()) * self.dt, 0.0)
+    reward = sum(rewards.values())
 
     state.info["last_last_act"] = state.info["last_act"]
     state.info["last_act"] = action
@@ -488,10 +489,17 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
             self.ref_loader.preloaded_refs["ref_base_robot_ang_vel"][info["ref_idx"]][info["step"]],  
             self.base_robot_ang_vel,
         ),
+        
         "tracking_endeffector_pos": self._reward_tracking_endeffector_pos(
-            self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]],
-            self.base_local_ee_pos
+            self.ref_loader.preloaded_refs["ref_local_ee_pos"][info["ref_idx"]][info["step"]],
+            self.local_ee_pos
         ),
+
+        # "tracking_endeffector_pos": self._reward_tracking_endeffector_pos(
+        #     self.ref_loader.preloaded_refs["ref_base_local_ee_pos"][info["ref_idx"]][info["step"]],
+        #     self.base_local_ee_pos
+        # ),
+
         # "tracking_torque": self._reward_tracking_torque(
         #     self.ref_loader.preloaded_refs["ref_torque"][info["ref_idx"]][info["step"]],
         #     self.actuator_torque,

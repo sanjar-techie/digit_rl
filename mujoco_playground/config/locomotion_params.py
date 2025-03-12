@@ -120,7 +120,8 @@ def brax_ppo_config(env_name: str) -> config_dict.ConfigDict:
 
   elif env_name in (
       "DigitRefTracking_Loco_JaxPPO",
-      "DigitRefTracking_Loco_JaxPPO_IK",
+      "DigitRefTracking_Jumping_JaxPPO",
+      "DigitRefTracking_Loco_JaxPPO_fivepoints",
   ):
     rl_config.num_timesteps=30_000_000
     rl_config.num_evals=10

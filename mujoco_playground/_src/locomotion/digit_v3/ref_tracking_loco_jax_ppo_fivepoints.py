@@ -134,7 +134,7 @@ class DigitRefTracking_Loco(digit_base.DigitEnv):
 
     # reference trajectory path
     dir_path, name = os.path.split(os.path.abspath(__file__))
-    self.reference_dataset_path = os.path.join(dir_path, "walking_with_torque") # walking_with_torque # testing
+    self.reference_dataset_path = os.path.join(dir_path, "testing") # walking_with_torque # testing
     self.ref_loader = ref_loader.JaxReferenceLoader(ref_traj_dir=self.reference_dataset_path)
 
   

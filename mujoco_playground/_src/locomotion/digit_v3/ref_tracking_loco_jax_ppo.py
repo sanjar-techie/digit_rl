@@ -31,7 +31,7 @@ from mujoco_playground._src import gait
 from mujoco_playground._src import mjx_env
 from mujoco_playground._src.locomotion.digit_v3 import base as digit_base
 from mujoco_playground._src.locomotion.digit_v3 import digit_constants as consts
-from mujoco_playground._src.locomotion.digit_v3 import digit_reference_data_loader as ref_loader
+from mujoco_playground._src.locomotion.digit_v3 import digit_reference_data_loader_IK as ref_loader
 
 
 def default_config() -> config_dict.ConfigDict:

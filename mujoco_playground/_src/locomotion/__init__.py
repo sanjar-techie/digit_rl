@@ -40,7 +40,6 @@ from mujoco_playground._src.locomotion.spot import joystick_gait_tracking as spo
 
 from mujoco_playground._src.locomotion.digit_v3 import ref_tracking_loco_jax_ppo as digit_ref_tracking_loco_jax_ppo
 from mujoco_playground._src.locomotion.digit_v3 import ref_tracking_jumping_jax_ppo as digit_ref_tracking_jumping_jax_ppo
-from mujoco_playground._src.locomotion.digit_v3 import ref_tracking_loco_jax_ppo_IK as digit_ref_tracking_loco_jax_ppo_IK
 from mujoco_playground._src.locomotion.digit_v3 import ref_tracking_loco_jax_ppo_fivepoints as digit_ref_tracking_loco_jax_ppo_fivepoints
 from mujoco_playground._src.locomotion.digit_v3 import ref_tracking_loco_rsl_rl as digit_ref_tracking_loco_rsl_rl
 from mujoco_playground._src.locomotion.t1 import joystick as t1_joystick
@@ -82,7 +81,6 @@ _envs = {
 
     "DigitRefTracking_Loco_JaxPPO": digit_ref_tracking_loco_jax_ppo.DigitRefTracking_Loco,
     "DigitRefTracking_Jumping_JaxPPO": digit_ref_tracking_jumping_jax_ppo.DigitRefTracking_Loco,
-    "DigitRefTracking_Loco_JaxPPO_IK": digit_ref_tracking_loco_jax_ppo_IK.DigitRefTracking_Loco,
     "DigitRefTracking_Loco_JaxPPO_fivepoints": digit_ref_tracking_loco_jax_ppo_fivepoints.DigitRefTracking_Loco,
     "DigitRefTracking_Loco_RSLRL": digit_ref_tracking_loco_rsl_rl.DigitRefTracking_Loco,
     "T1JoystickFlatTerrain": functools.partial(
@@ -117,7 +115,6 @@ _cfgs = {
 
     "DigitRefTracking_Loco_JaxPPO": digit_ref_tracking_loco_jax_ppo.default_config,
     "DigitRefTracking_Jumping_JaxPPO": digit_ref_tracking_jumping_jax_ppo.default_config,
-    "DigitRefTracking_Loco_JaxPPO_IK": digit_ref_tracking_loco_jax_ppo_IK.default_config,
     "DigitRefTracking_Loco_JaxPPO_fivepoints": digit_ref_tracking_loco_jax_ppo_fivepoints.default_config,
     "DigitRefTracking_Loco_RSLRL": digit_ref_tracking_loco_rsl_rl.default_config,
     "T1JoystickFlatTerrain": t1_joystick.default_config,

@@ -1,91 +1,99 @@
-
 import os
 import jax
 import jax.numpy as jp
 import numpy as np
 import time
+from jax import ShapeDtypeStruct
+from functools import partial
+from jax import jit
+
 
 class JaxReferenceLoader:
-    def __init__(self, ref_traj_path, subsample_factor=1):
+    def __init__(self, ref_traj_dir, subsample_factor=1, device="cpu"):
         """
         JAX-based reference trajectory loader that loads one random trajectory per reset.
         """
         self.subsample_factor = subsample_factor
         self.ref_data = None
+        self.device = device
+        self.ref_traj_dir = ref_traj_dir
 
-        if os.path.isdir(ref_traj_path):
-            # Training mode
-            self.ref_traj_dir = ref_traj_path
-            self.ref_files = [f for f in os.listdir(self.ref_traj_dir) if f.endswith(".npz")]
-            if not self.ref_files:
-                raise ValueError(f"No reference trajectories found in {self.ref_traj_dir}")
-            self.ref_traj_file = None
-        else:
-            # Testing mode
-            if not ref_traj_path.endswith(".npz"):
-                raise ValueError(f"Expected an .npz file, got: {ref_traj_path}")
-            self.ref_traj_dir = None
-            self.ref_traj_file = ref_traj_path
+        self.a_pos_index = jp.array([
+            7,  8,  9,  14, 18, 23, 30, 31, 32, 33,  # actuator joint pos "hip-roll, yaw, pitch, knee, toe-A, B, shoulder-row, pitch, yaw, elbow"
+            34, 35, 36, 41, 45, 50, 57, 58, 59, 60
+        ]) 
+        self.a_vel_index = jp.array([
+            6,  7,  8,  12, 16, 20, 26, 27, 28, 29,     # actuator joint vel
+            30, 31, 32, 36, 40, 44, 50, 51, 52, 53
+        ]) 
+
+        self.preloaded_refs = self._preload_trajectories()
 
 
-        self.reset()
-
-    def _preload_trajectory(self, file_path):
+    def _preload_trajectories(self):
         """
-        Load a single reference trajectory into JAX arrays.
+        Preload all reference trajectories into memory.
         """
-        data = np.load(file_path)
-        ref_data = data["ref_data"]
-        ref_motion_lens = ref_data.shape[0]
-
-        ref_qpos = jp.array(ref_data[:, 0:61])
-        ref_qvel = jp.array(ref_data[:, 61:61+54])
-        ref_ee_pos = jp.array(ref_data[:, 61+54:61+54+12].reshape(-1, 4, 3))
-        ref_base_local_quat = jp.array(ref_qpos[:, [3, 4, 5, 6]])  # (w, x, y, z)
-
-        ref_base_local_ori = self.quat2euler(ref_base_local_quat)
-        ref_base_local_pos = jp.array(ref_qpos[:, :3])
-        ref_base_local_trans = ref_base_local_pos - ref_base_local_pos[0]
-        ref_base_local_ee_pos = ref_ee_pos - ref_base_local_pos[:, None, :]
-
-        ref_base_rot = jax.vmap(self.euler2mat)(ref_base_local_ori)
-        ref_base_rot = ref_base_rot.squeeze()
-        ref_base_robot_ee_pos = jp.einsum('bij,bjk->bik', ref_base_rot.transpose(0, 2, 1), ref_base_local_ee_pos.transpose(0, 2, 1)).transpose(0, 2, 1)
-        ref_base_robot_lin_vel = jp.einsum('bij,bj->bi', ref_base_rot.transpose(0, 2, 1), ref_qvel[:, :3])
-        ref_base_robot_ang_vel = jp.einsum('bij,bj->bi', ref_base_rot.transpose(0, 2, 1), ref_qvel[:, 3:6])
-
-        self.ref_data = {
-            "ref_motion_lens":ref_motion_lens,
-            "ref_qpos": ref_qpos,
-            "ref_qvel": ref_qvel,
-            "ref_base_local_pos": ref_base_local_pos,
-            "ref_base_local_trans": ref_base_local_trans,
-            "ref_base_local_ori": ref_base_local_ori,
-            "ref_base_local_ee_pos": ref_base_local_ee_pos,
-            "ref_base_robot_lin_vel": ref_base_robot_lin_vel,
-            "ref_base_robot_ang_vel": ref_base_robot_ang_vel,
-            "ref_base_robot_ee_pos": ref_base_robot_ee_pos,
+        preloaded_refs = {
+            # "ref_motion_lens": [],
+            "ref_motor_joint_pos": [],
+            "ref_motor_joint_vel": [],
+            "ref_base_local_pos": [],
+            "ref_base_local_trans": [],
+            "ref_base_local_ori": [],
+            "ref_base_local_ee_pos": [],
+            "ref_base_robot_lin_vel": [],
+            "ref_base_robot_ang_vel": [],
+            "ref_base_robot_ee_pos": [],
+            "ref_local_ee_pos": [],
+            "ref_torque":[],
         }
 
+        for file in os.listdir(self.ref_traj_dir):
+            if file.endswith(".npz"):
+                print(file)
+                path = os.path.join(self.ref_traj_dir, file)
+                data = np.load(path)
+                ref_data = data["ref_data"]
+                ref_qpos = jp.array(ref_data[:, 0:61])
+                ref_qvel = jp.array(ref_data[:, 61:61+54])
+                ref_ee_pos = jp.array(ref_data[:, 61+54:61+54+12].reshape(-1, 4, 3))
+                ref_torque = jp.array(ref_data[:, 61+54+12:61+54+12+20])
+                ref_base_local_quat = jp.array(ref_qpos[:, [6, 3, 4, 5]])  # (w, x, y, z) Notice: Specify the index for your reference trajectory
 
-    def reset(self):
-        """
-        Randomly select a new trajectory and load it.
-        """
-        if self.ref_traj_dir:
-            # training mode
-            random_file = np.random.choice(self.ref_files)
-            file_path = os.path.join(self.ref_traj_dir, random_file)
-        else:
-            # testing mode
-            file_path = self.ref_traj_file
+                ref_base_local_ori = self.quat2euler(ref_base_local_quat)
+                ref_base_local_pos = jp.array(ref_qpos[:, :3])
+                ref_base_local_trans = ref_base_local_pos - ref_base_local_pos[0]
+                ref_base_local_ee_pos = ref_ee_pos - ref_base_local_pos[:, None, :]
 
-        jax.debug.print("file_path:{}",file_path)
+                ref_base_rot = jax.vmap(self.euler2mat)(ref_base_local_ori)
+                ref_base_rot = ref_base_rot.squeeze()
+                ref_base_robot_ee_pos = jp.einsum('bij,bjk->bik', ref_base_rot.transpose(0, 2, 1), ref_base_local_ee_pos.transpose(0, 2, 1)).transpose(0, 2, 1)
+                ref_base_robot_lin_vel = jp.einsum('bij,bj->bi', ref_base_rot.transpose(0, 2, 1), ref_qvel[:, :3])
+                ref_base_robot_ang_vel = jp.einsum('bij,bj->bi', ref_base_rot.transpose(0, 2, 1), ref_qvel[:, 3:6])
 
-        self._preload_trajectory(file_path)
+                # preloaded_refs["ref_motion_lens"].append(ref_motion_lens)
+                preloaded_refs["ref_motor_joint_pos"].append(ref_qpos[:,self.a_pos_index])
+                preloaded_refs["ref_motor_joint_vel"].append(ref_qvel[:,self.a_vel_index])
+                preloaded_refs["ref_base_local_pos"].append(ref_base_local_pos)
+                preloaded_refs["ref_base_local_trans"].append(ref_base_local_trans)
+                preloaded_refs["ref_base_local_ori"].append(ref_base_local_ori)
+                preloaded_refs["ref_base_local_ee_pos"].append(ref_base_local_ee_pos)
+                preloaded_refs["ref_base_robot_lin_vel"].append(ref_base_robot_lin_vel)
+                preloaded_refs["ref_base_robot_ang_vel"].append(ref_base_robot_ang_vel)
+                preloaded_refs["ref_base_robot_ee_pos"].append(ref_base_robot_ee_pos)
+                preloaded_refs["ref_local_ee_pos"].append(ref_ee_pos)
+                preloaded_refs["ref_torque"].append(ref_torque)
 
+        for key in preloaded_refs:
+            preloaded_refs[key] = jp.array(preloaded_refs[key])
 
+        print("Successfully loaded the reference!!")
 
+        return preloaded_refs # jax.tree_util.tree_map(lambda x: jp.stack(x, axis=0), preloaded_refs)
+        
+
+        
     def quat2euler(self, quat):
         """
         Convert quaternion (w, x, y, z) to Euler angles (roll, pitch, yaw).
@@ -127,3 +135,5 @@ class JaxReferenceLoader:
         ], axis=-1).reshape(-1, 3, 3)
 
         return jp.einsum('bij,bjk,bkl->bil', rot_z, rot_y, rot_x)
+    
+
