@@ -5,3 +5,11 @@ __pycache__
 MUJOCO_LOG.TXT
 mujoco_menagerie
 checkpoints/
+learning/logs/
+.venv
+learning/wandb/
+wandb/*
+wandb/run-20250225_201508-98fc22rl/files/wandb-metadata.json
+wandb/run-20250225_201508-98fc22rl/files/wandb-metadata.json
+wandb/run-20250225_201508-98fc22rl/files/wandb-metadata.json
+wandb/

@@ -7,16 +7,16 @@
     "--use_tb=True",
     "--use_wandb=True"
   ],
-  "program": "/home/fliu305/mujoco_playground/learning/train_jax_ppo.py",
+  "program": "/home/sanjar/digit_rl/mujoco_playground/learning/train_jax_ppo.py",
   "codePath": "learning/train_jax_ppo.py",
   "git": {
     "remote": "https://github.gatech.edu/GeorgiaTechLIDARGroup/mujoco_playground.git",
     "commit": "44d675e8f48c2d1daea62bf89a3a8e8d815e1bdf"
   },
-  "email": "fukangliu@gatech.edu",
-  "root": "/home/fliu305/mujoco_playground",
+  "email": "satamuradov3@gatech.edu",
+  "root": "/home/sanjar/digit_rl/mujoco_playground",
   "host": "MEL06533D.me.gatech.edu",
-  "username": "fukangliu-georgia-institute-of-technology",
+  "username": "satamuradov3",
   "executable": "/home/fliu305/anaconda3/envs/digit_mjx/bin/python",
   "codePathLocal": "learning/train_jax_ppo.py",
   "cpu_count": 24,
