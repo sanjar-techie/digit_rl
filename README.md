@@ -1,90 +1,61 @@
-# MuJoCo Playground
+# Digit Five-Point Tracking RL Controller
 
-[![Build](https://img.shields.io/github/actions/workflow/status/google-deepmind/mujoco_playground/ci.yml?branch=main)](https://github.com/google-deepmind/mujoco_playground/actions)
-[![PyPI version](https://img.shields.io/pypi/v/playground)](https://pypi.org/project/playground/)
-![Banner for playground](https://github.com/google-deepmind/mujoco_playground/blob/main/assets/banner.png?raw=true)
+## Overview
+This project trains a reinforcement learning (RL) controller using Proximal Policy Optimization (PPO) to enable the Digit robot (simulated in MuJoCo) to track five specific points: the root (torso), left foot, right foot, left hand, and right hand. The goal is to achieve precise locomotion and manipulation by aligning these keypoints with reference trajectories, leveraging a pretrained model and evaluating its performance.
 
-A comprehensive suite of GPU-accelerated environments for robot learning research and sim-to-real, built with [MuJoCo MJX](https://github.com/google-deepmind/mujoco/tree/main/mjx).
+## Environment
+- **Name**: `DigitRefTracking_Loco_JaxPPO_fivepoints`
+- **Simulator**: MuJoCo (via JAX with MJX)
+- **Tracked Points**:
+  - Root (torso position and orientation)
+  - Left foot (end-effector position)
+  - Right foot (end-effector position)
+  - Left hand (end-effector position)
+  - Right hand (end-effector position)
+- **Reward Config**:
+  - Positive rewards for tracking end-effector positions (`tracking_endeffector_pos`), joint positions (`tracking_joint_pos`), and root dynamics (`tracking_root_*`).
+  - Penalties for excessive action rates (`action_rate`), root motion (`root_motion_penalty`), and tilting (`projected_gravity_penalty`).
 
-Features include:
+## Training
+- **Algorithm**: PPO (via Brax and JAX)
+- **Pretrained Model**: Loaded from `logs/DigitRefTracking_Loco_JaxPPO_fivepoints-20250314-221114/checkpoints/1001226240`, trained for 50M timesteps.
+- **Hardware**: NVIDIA RTX 4090 (24GB VRAM, 1 GPU)
+- **Key Hyperparameters**:
+  - `num_timesteps`: 50M
+  - `num_envs`: 2048 (parallel environments)
+  - `num_eval_envs`: 256
+  - `learning_rate`: 3e-4
+  - `episode_length`: 1000 steps
+  - `reward_scaling`: 1.0
+- **Command** (training):
+  ```bash
+  python train_jax_ppo.py --env_name=DigitRefTracking_Loco_JaxPPO_fivepoints --num_timesteps=5000000 --num_evals=10 --load_checkpoint_path=logs/DigitRefTracking_Loco_JaxPPO_fivepoints-20250314-221114/checkpoints/1001226240 [other args]
+  ```
 
-- Classic control environments from `dm_control` reimplemented in MJX.
-- Quadruped and bipedal locomotion environments.
-- Non-prehensile and dexterous manipulation environments.
-- Vision-based support available via [Madrona-MJX](https://github.com/shacklettbp/madrona_mjx).
+## Evaluation
+- **Mode**: Evaluation-only ("play only") to assess the pretrained policy.
+- **Command**:
+  ```bash
+  python train_jax_ppo.py --env_name=DigitRefTracking_Loco_JaxPPO_fivepoints --num_timesteps=0 --num_evals=1 --load_checkpoint_path=logs/DigitRefTracking_Loco_JaxPPO_fivepoints-20250314-221114/checkpoints
+  ```
+- **Output**: Reward, steps per second (SPS), episode length, and optionally a video of the Digit robot tracking the five points.
 
-For more details, check out the project [website](https://playground.mujoco.org/).
+## Results
+- **Pretrained Performance**: After 50M timesteps, the policy achieves good tracking of the root, feet, and hands (reward ~14.889 at 4.6M steps in resumed run).
+- **Logs**: Stored in `logs/DigitRefTracking_Loco_JaxPPO_fivepoints-20250322-144002/` with checkpoints every ~655k steps.
+- **Visualization**: 
+To visualize the performance, you can view the video below:
 
-## Installation
+![Digit Robot Tracking](learning/rollout_20250322_150912.mp4)
 
-You can install MuJoCo Playground directly from PyPI:
+## Setup
+1. **Environment**: Activate the Conda env:
+   ```bash
+   conda activate mujoco_playground
+   ```
+2. **Dependencies**: JAX, Brax, MuJoCo, Orbax (installed in `mujoco_playground` env).
+3. **Run**: Use the training or evaluation commands above.
 
-```sh
-pip install playground
-```
-
-### From Source
-
-> [!IMPORTANT]
-> Requires Python 3.10 or later.
-
-1. `git clone git@github.com:google-deepmind/mujoco_playground.git && cd mujoco_playground`
-2. [Install uv](https://docs.astral.sh/uv/getting-started/installation/), a faster alternative to `pip`
-3. Create a virtual environment: `uv venv --python 3.11`
-4. Activate it: `source .venv/bin/activate`
-5. Install CUDA 12 jax: `uv pip install -U "jax[cuda12]"`
-    * Verify GPU backend: `python -c "import jax; print(jax.default_backend())"` should print gpu
-6. Install playground: `uv pip install -e ".[all]"`
-7. Verify installation (and download Menagerie): `python -c "import mujoco_playground"`
-
-#### Madrona-MJX (optional)
-
-For vision-based environments, please refer to the installation instructions in the [Madrona-MJX](https://github.com/shacklettbp/madrona_mjx?tab=readme-ov-file#installation) repository.
-
-## Getting started
-
-### Basic Tutorials
-| Colab | Description |
-|-------|-------------|
-| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco_playground/blob/main/learning/notebooks/dm_control_suite.ipynb) | Introduction to the Playground with DM Control Suite |
-| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco_playground/blob/main/learning/notebooks/locomotion.ipynb) | Locomotion Environments |
-| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco_playground/blob/main/learning/notebooks/manipulation.ipynb) | Manipulation Environments |
-
-### Vision-Based Tutorials (GPU Colab)
-| Colab | Description |
-|-------|-------------|
-| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco_playground/blob/main/learning/notebooks/training_vision_1_t4.ipynb) | Training CartPole from Vision (T4 Instance) |
-
-### Local Runtime Tutorials
-*Requires local Madrona-MJX installation*
-
-| Colab | Description |
-|-------|-------------|
-| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco_playground/blob/main/learning/notebooks/training_vision_1.ipynb) | Training CartPole from Vision |
-| [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/google-deepmind/mujoco_playground/blob/main/learning/notebooks/training_vision_2.ipynb) | Robotic Manipulation from Vision |
-
-## How can I contribute?
-
-Get started by installing the library and exploring its features! Found a bug? Report it in the issue tracker. Interested in contributing? If you are a developer with robotics experience, we would love your help—check out the [contribution guidelines](CONTRIBUTING.md) for more details.
-
-## Citation
-
-If you use Playground in your scientific works, please cite it as follows:
-
-```bibtex
-@misc{mujoco_playground_2025,
-  title = {MuJoCo Playground: An open-source framework for GPU-accelerated robot learning and sim-to-real transfer.},
-  author = {Zakka, Kevin and Tabanpour, Baruch and Liao, Qiayuan and Haiderbhai, Mustafa and Holt, Samuel and Luo, Jing Yuan and Allshire, Arthur and Frey, Erik and Sreenath, Koushil and Kahrs, Lueder A. and Sferrazza, Carlo and Tassa, Yuval and Abbeel, Pieter},
-  year = {2025},
-  publisher = {GitHub},
-  url = {https://github.com/google-deepmind/mujoco_playground}
-}
-```
-
-## License and Disclaimer
-
-The texture used in the rough terrain for the locomotion environments is from [Polyhaven](https://polyhaven.com/a/rock_face) and licensed under [CC0](https://creativecommons.org/public-domain/cc0/).
-
-All other content in this repository is licensed under the Apache License, Version 2.0. A copy of this license is provided in the top-level [LICENSE](LICENSE) file in this repository. You can also obtain it from https://www.apache.org/licenses/LICENSE-2.0.
-
-This is not an officially supported Google product.
+## Notes
+- The pretrained model was extended from 1M to 5M timesteps, improving reward from 7.382 to 14.889.
+- Future work could tune penalties (e.g., `root_motion_penalty`) to reduce early terminations (episode length < 1000).
